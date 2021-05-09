@@ -1,0 +1,37 @@
+{
+  "name": "normailze-orm",
+  "version": "0.0.1",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FreeJoe/normailze-orm.git"
+  },
+  "keywords": [
+    "orm",
+    "normolize"
+  ],
+  "author": "freeJoe",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/FreeJoe/normailze-orm/issues"
+  },
+  "homepage": "https://github.com/FreeJoe/normailze-orm#readme",
+  "peerDependencies": {
+    "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.23",
+    "@types/lodash": "^4.14.168",
+    "@typescript-eslint/eslint-plugin": "^4.22.1",
+    "@typescript-eslint/parser": "^4.22.1",
+    "eslint": "^7.25.0",
+    "jest": "^26.6.3"
+  },
+  "dependencies": {
+    "recoil": "^0.2.0"
+  }
+}
