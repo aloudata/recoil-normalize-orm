@@ -1,37 +1,55 @@
 {
-  "name": "normailze-orm",
-  "version": "0.0.1",
-  "description": "",
-  "main": "dist/index.js",
-  "scripts": {
-    "test": "test"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/FreeJoe/normailze-orm.git"
-  },
-  "keywords": [
-    "orm",
-    "normolize"
-  ],
-  "author": "freeJoe",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/FreeJoe/normailze-orm/issues"
-  },
-  "homepage": "https://github.com/FreeJoe/normailze-orm#readme",
-  "peerDependencies": {
-    "lodash": "^4.17.21"
-  },
-  "devDependencies": {
-    "@types/jest": "^26.0.23",
-    "@types/lodash": "^4.14.168",
-    "@typescript-eslint/eslint-plugin": "^4.22.1",
-    "@typescript-eslint/parser": "^4.22.1",
-    "eslint": "^7.25.0",
-    "jest": "^26.6.3"
-  },
-  "dependencies": {
-    "recoil": "^0.2.0"
-  }
+    "name": "normalize-orm",
+    "version": "0.0.1",
+    "description": "",
+    "main": "dist/index.js",
+    "scripts": {
+        "test": "jest",
+        "lint": "eslint",
+        "build": "export NODE_ENV=production;webpack"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/FreeJoe/normailze-orm.git"
+    },
+    "keywords": [
+        "orm",
+        "normalize"
+    ],
+    "author": "freeJoe",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/FreeJoe/normailze-orm/issues"
+    },
+    "homepage": "https://github.com/FreeJoe/normailze-orm#readme",
+    "peerDependencies": {
+        "lodash": "^4.17.21",
+        "recoil": "^0.2.0"
+    },
+    "devDependencies": {
+        "@babel/preset-env": "^7.14.2",
+        "@babel/preset-typescript": "^7.13.0",
+        "@testing-library/jest-dom": "^5.12.0",
+        "@testing-library/react-hooks": "^5.1.2",
+        "@types/jest": "^26.0.23",
+        "@types/lodash": "^4.14.168",
+        "@types/recoil": "0.0.1",
+        "@typescript-eslint/eslint-plugin": "^4.22.1",
+        "@typescript-eslint/parser": "^4.22.1",
+        "@webpack-cli/generators": "^2.1.0",
+        "declaration-bundler-webpack-plugin": "^1.0.3",
+        "eslint": "^7.26.0",
+        "jest": "^26.6.3",
+        "lodash": "^4.17.21",
+        "react": "^17.0.2",
+        "react-dom": "^17.0.2",
+        "react-test-renderer": "^17.0.2",
+        "recoil": "^0.2.0",
+        "ts-jest": "^26.5.6",
+        "ts-loader": "^9.2.1",
+        "ts-node": "^9.1.1",
+        "typescript": "^4.2.4",
+        "webpack": "^5.37.1",
+        "webpack-cli": "^4.7.0"
+    }
 }
