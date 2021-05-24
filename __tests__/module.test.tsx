@@ -21,10 +21,13 @@ const tagStore = createModel<ITagItem>(Tag);
 describe('model', () => {
     afterEach(() => {
         // 重置所有数据
-        renderHook(() => {
+        const { result } = renderHook(() => {
             const { reset, } = useChangeData();
-            reset();
+            return { reset, };
         }, { wrapper });
+        act(() => {
+            result.current.reset();
+        });
     });
 
     test('useShallowData for list', () => {
