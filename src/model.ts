@@ -12,6 +12,19 @@ export default function initModel(): {
 } {
     const modelManager = new ModelManager();
 
+    const staticResetSelector = selector({
+        key: 'NORMALIZE_ORM_MODEL_STATIC_METHODS',
+        get: () => {
+            return null;
+        },
+        set: ({ reset, }: IRecoilSetOpt) => {
+            modelManager.traverse((modelInstance) => {
+                const { atom } = modelInstance;
+                reset(atom);
+            });
+        },
+    });
+
     return {
         createModel,
         useChangeData,
@@ -233,19 +246,6 @@ export default function initModel(): {
         }
     }
 
-    const staticResetSelector = selector({
-        key: 'NORMALIZE_.ORM_.MODEL_.STATIC_.METHODS',
-        get: () => {
-            return null;
-        },
-        set: ({ reset, }: IRecoilSetOpt) => {
-            modelManager.traverse((modelInstance) => {
-                const { atom } = modelInstance;
-                reset(atom);
-            });
-        },
-    });
-
     /**
      * 全局数据操作的hook，可以操作所有model表
      * @returns 
@@ -289,9 +289,9 @@ function isNormalizedLike(data: AnyData[]) {
 }
 
 function getAtomName(name: string) {
-    return `NORMALIZE_.ORM_.MODEL_.ATOM_.${name}`;
+    return `NORMALIZE_ORM_MODEL_ATOM_${name}`;
 }
 
 function getSelectorName(name: string, extra?: string) {
-    return `NORMALIZE_.ORM_.MODEL_.SELECTOR_.${name}${extra ? `_.${extra}`: ''}`;
+    return `NORMALIZE_ORM_MODEL_SELECTOR_${name}${extra ? `_${extra}`: ''}`;
 }
