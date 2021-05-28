@@ -1,4 +1,4 @@
-import { RecoilRoot, } from 'recoil';
+import { RecoilRoot, useRecoilValue, } from 'recoil';
 import { renderHook, act, } from '@testing-library/react-hooks';
 import initModel from '../src/model';
 import { User, Book, Comment, Tag, } from './data/modelDef';
@@ -15,7 +15,7 @@ const wrapper = (props: { children: React.ReactNode }) => {
 const { createModel, useChangeData, } = initModel();
 const bookStore = createModel<IBookItem>(Book);
 const userStore = createModel<IUserItem>(User);
-const commentStore = createModel<ICommentItem>(Comment);
+createModel<ICommentItem>(Comment);
 const tagStore = createModel<ITagItem>(Tag);
 
 describe('model', () => {
@@ -32,7 +32,7 @@ describe('model', () => {
 
     test('useShallowData for list', () => {
         const { result, } = renderHook(() => {
-            const data = bookStore.useShallowData([1, 2]);
+            const data = useRecoilValue(bookStore.getShallowDataSelector([1, 2]));
             const { set } = bookStore.useChangeData();
             return {
                 setData: set,
@@ -59,7 +59,7 @@ describe('model', () => {
 
     test('useShallowData for single', () => {
         const { result, } = renderHook(() => {
-            const data = bookStore.useShallowData(1);
+            const data = useRecoilValue(bookStore.getShallowDataSelector(1));
             const { set } = bookStore.useChangeData();
             return {
                 setData: set,
@@ -80,7 +80,7 @@ describe('model', () => {
 
     test('useData for list', () => {
         const { result, } = renderHook(() => {
-            const data = bookStore.useData([1, 2]);
+            const data = useRecoilValue(bookStore.getDataSelector([1, 2]));
             const { set } = bookStore.useChangeData();
             return {
                 setData: set,
@@ -95,7 +95,7 @@ describe('model', () => {
 
     test('useData for single', () => {
         const { result, } = renderHook(() => {
-            const data = bookStore.useData(2);
+            const data = useRecoilValue(bookStore.getDataSelector(2));
             const { set } = bookStore.useChangeData();
             return {
                 setData: set,
@@ -150,7 +150,7 @@ describe('model', () => {
 
     test('check relative data is in store after set', () => {
         const { result, } = renderHook(() => {
-            const tags = tagStore.useData(['t01', 't02', 't03', 't04', 't05']) as ITagItem[];
+            const tags = useRecoilValue(tagStore.getDataSelector(['t01', 't02', 't03', 't04', 't05']));
             const { set, } = bookStore.useChangeData();
             return {
                 set,
@@ -181,7 +181,7 @@ describe('model', () => {
     test('cant get inexistent id', () => {
         let bookItem: IBookItem | null | undefined = undefined;
         renderHook(() => {
-            bookItem = bookStore.useData(3) as null;
+            bookItem = useRecoilValue(bookStore.getDataSelector(3)) as null;
         }, { wrapper, });
         expect(bookItem).toEqual(null);
     });
@@ -189,7 +189,7 @@ describe('model', () => {
     test('cant get inexistent ids', () => {
         const { result, } = renderHook(() => {
             // id 3不存在，会被自动过滤掉，只会返回包含已存在数据的列表
-            const data = bookStore.useData([1, 3]);
+            const data = useRecoilValue(bookStore.getDataSelector([1, 3]));
             const { set } = bookStore.useChangeData();
             return {
                 setData: set,
@@ -204,7 +204,7 @@ describe('model', () => {
 
     test('remove existed id', () => {
         const { result, } = renderHook(() => {
-            const data = bookStore.useData([1, 2]);
+            const data = useRecoilValue(bookStore.getDataSelector([1, 2]));
             const { remove, set, } = bookStore.useChangeData();
             return {
                 remove,
@@ -223,7 +223,7 @@ describe('model', () => {
 
     test('remove existed ids', () => {
         const { result, } = renderHook(() => {
-            const data = bookStore.useData([1, 2]);
+            const data = useRecoilValue(bookStore.getDataSelector([1, 2]));
             const { remove, set, } = bookStore.useChangeData();
             return {
                 set,
@@ -242,7 +242,7 @@ describe('model', () => {
 
     test('remove inexistent id', () => {
         const { result, } = renderHook(() => {
-            const data = bookStore.useData([1, 2]);
+            const data = useRecoilValue(bookStore.getDataSelector([1, 2]));
             const { remove, set, } = bookStore.useChangeData();
             return {
                 set,

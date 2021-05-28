@@ -9,6 +9,9 @@ const config = {
     entry: './src/index.ts',
     output: {
         path: path.resolve(__dirname, 'dist'),
+        library: 'recoil-normalize-orm',
+        libraryTarget: 'umd',
+        globalObject: 'this'
     },
     module: {
         rules: [
@@ -33,6 +36,7 @@ const config = {
         recoil: 'recoil',
         lodash: {
             commonjs: 'lodash',
+            commonjs2: 'lodash',
             amd: 'lodash',
             root: '_', // indicates global variable
         },

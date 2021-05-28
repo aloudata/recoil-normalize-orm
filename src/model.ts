@@ -1,6 +1,7 @@
 import {
     atom, selector, selectorFamily, useRecoilValue, useRecoilState, useResetRecoilState,
     GetRecoilValue,
+    AtomOptions,
 } from 'recoil';
 import { AnyData, IModelDataMap, IModelStaticMethods, IModelId, IModelMethods, IModelOpt, IRecoilSetOpt, } from './types';
 import ModelManager from './modelManager';
@@ -37,13 +38,14 @@ export default function initModel(): {
             throw new Error(`model name existed: ${name}`);
         }
 
-        const atomItem = atom<IModelDataMap<T>>({
+        const atomOpt: AtomOptions<IModelDataMap<T>> = {
             key: getAtomName(currModelName),
-            default: {},
-        });
+            default: {} as T,
+        };
+        const atomItem = atom<IModelDataMap<T>>(atomOpt);
 
-        const getSelectorItem = selectorFamily<T | T[] | null, IModelId[] | IModelId>({
-            key: getSelectorName(currModelName, 'get'),
+        const getDataSelector = selectorFamily<T | T[] | null, IModelId[] | IModelId>({
+            key: getSelectorName(currModelName, 'getData'),
             get: (ids) => ({ get, }: { get: GetRecoilValue }) => {
                 const dataMap = get(atomItem);
                 const data = getValue<T>(dataMap, ids);
@@ -56,6 +58,14 @@ export default function initModel(): {
                 }
                 // 读取单个数据
                 return getDataItemRecursively(get, currModelName, data as T);
+            },
+        });
+
+        const getShallowDataSelector = selectorFamily<T | T[] | null, IModelId[] | IModelId>({
+            key: getSelectorName(currModelName, 'getShallowData'),
+            get: (ids) => ({ get }: { get: GetRecoilValue }) => {
+                const dataMap = get(atomItem);
+                return getValue<T>(dataMap, ids);
             },
         });
 
@@ -87,13 +97,8 @@ export default function initModel(): {
         });
 
         return {
-            useShallowData: (ids: IModelId[] | IModelId) => {
-                const dataMap = useRecoilValue(atomItem);
-                return getValue<T>(dataMap, ids);
-            },
-            useData: (ids: IModelId[] | IModelId) => {
-                return useRecoilValue(getSelectorItem(ids));
-            },
+            getShallowDataSelector,
+            getDataSelector,
             useChangeData: () => {
                 const [storeMap, setStoreMap] = useRecoilState(updaterSelectorItem);
                 return {

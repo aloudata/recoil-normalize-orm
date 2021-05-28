@@ -282,14 +282,14 @@ type IModelId = string | number;
 // 在hook函数中
 function useCustomHook() {
     // 批量获取完整数据，books的数据和初始化章节中booksData数据一样
-    const books = bookStore.useData([1, 2]);
+    const books = useRecoilValue(bookStore.getDataSelector([1, 2]));
     // 批量获取本模型下数据，shallowBooks获取到的是Book模型下只包含其他模型id的数据
     // [{ id: 1, name: 'book1', author: '1', comments: ['c1', 'c2'], summary: 'hello world', }, { id: 2, name: 'book2', author: '2', comments: ['c3', 'c4'], summary: 'new start', }]
-    const shallowBooks = bookStore.useShallowData([1, 2]);
+    const shallowBooks = useRecoilValue(bookStore.getShallowDataSelector([1, 2]));
     // 获取单条完整数据
-    const singleBook = bookStore.useData(1);
+    const singleBook = useRecoilValue(bookStore.getDataSelector(1));
     // 获取单条本模型下的数据
-    const singleShallowBook = bookStore.useData(1);
+    const singleShallowBook = useRecoilValue(bookStore.getDataSelector(1));
 }
 ```
 

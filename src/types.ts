@@ -1,4 +1,4 @@
-import { SetRecoilState, ResetRecoilState, RecoilState, GetRecoilValue, } from 'recoil';
+import { SetRecoilState, ResetRecoilState, RecoilState, GetRecoilValue, RecoilValueReadOnly } from 'recoil';
 export interface IModelOpt {
     // Model名称，如 "User"
     name: string;
@@ -26,8 +26,8 @@ export interface IModelDataMap<T> {
 }
 
 export interface IModelMethods<T> {
-    useShallowData: (ids: IModelId[] | IModelId) => T | T[] | null;
-    useData: (ids: IModelId[] | IModelId) => T | T[] | null;
+    getShallowDataSelector: (ids: IModelId[] | IModelId) => RecoilValueReadOnly<T | T[] | null>;
+    getDataSelector: (ids: IModelId[] | IModelId) => RecoilValueReadOnly<T | T[] | null>;
     useChangeData: () => {
         set: (id: IModelId | Partial<T> | Partial<T>[], data?: Partial<T>) => IModelId | IModelId[] | null;
         remove: (id: IModelId | IModelId[]) => void;

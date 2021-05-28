@@ -1,8 +1,8 @@
 {
-    "name": "normalize-orm",
-    "version": "0.0.1",
+    "name": "@aloudata/recoil-normalize-orm",
+    "version": "0.0.1-alpha",
     "description": "",
-    "main": "dist/index.js",
+    "main": "dist/main.js",
     "scripts": {
         "test": "jest",
         "lint": "eslint",
@@ -12,6 +12,7 @@
         "type": "git",
         "url": "git+https://github.com/FreeJoe/normailze-orm.git"
     },
+    "files": ["dist"],
     "keywords": [
         "orm",
         "normalize"
