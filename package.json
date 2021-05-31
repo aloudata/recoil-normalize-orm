@@ -1,12 +1,13 @@
 {
     "name": "@aloudata/recoil-normalize-orm",
-    "version": "0.0.1-alpha",
+    "version": "0.0.2-alpha",
     "description": "",
     "main": "dist/main.js",
+    "types": "dist/index.d.ts",
     "scripts": {
         "test": "jest",
         "lint": "eslint",
-        "build": "export NODE_ENV=production;webpack"
+        "build": "npm run lint;npm run test;export NODE_ENV=production;webpack"
     },
     "repository": {
         "type": "git",
