@@ -97,37 +97,41 @@ export default function initModel(): {
       atom: atomItem,
     });
 
+    const mutableStoreMap: { [key: string]: IModelDataMap<T> } = {};
     return {
       getShallowDataSelector,
       getDataSelector,
       useChangeData: () => {
         const [storeMap, setStoreMap] = useRecoilState(updaterSelectorItem);
 
+        // 防止 useChangeData 返回的方法生成新的方法对象，导致用了 useChangeData 返回方法的 hook 的依赖项多次变更
+        clearAllProperties(mutableStoreMap);
+        Object.assign(mutableStoreMap, storeMap);
+
         const set = useCallback((id, data) => {
-          const newStoreMap = _.cloneDeep(storeMap);
+          const newStoreMap = _.cloneDeep(mutableStoreMap);
           const ids = normalize<T>(currModelName, newStoreMap, id, data);
-          if (!_.isEqual(newStoreMap, storeMap)) {
+          if (!_.isEqual(newStoreMap, mutableStoreMap)) {
             setStoreMap(newStoreMap);
           }
           return ids;
-        }, [storeMap, setStoreMap]);
+        }, [setStoreMap]);
 
         const remove = useCallback((id) => {
           if (id === undefined) {
             throw new Error('remove id is undefined');
           }
-          const newStoreMap = _.cloneDeep(storeMap);
+          const newStoreMap = _.cloneDeep(mutableStoreMap);
           const modelData = newStoreMap[currModelName];
           // id值可能是字符串或数字，而存在表中的key是字符串，因此要将id值转成字符串进行比较
           const targetIds = _.map(_.isArray(id) ? id : [id], (idVal) => idVal.toString());
           _.forOwn(modelData, (dataItem, idVal) => {
             if (targetIds.indexOf(idVal) !== -1) {
-              // 删除的数据，在存储中依然保留id的key，只是将数据改为null。在查询时会过滤掉为null的数据项
-              modelData[idVal] = null;
+              Reflect.deleteProperty(modelData, idVal);
             }
           });
           setStoreMap(newStoreMap);
-        }, [storeMap, setStoreMap]);
+        }, [setStoreMap]);
 
         return {
           set,
@@ -135,6 +139,14 @@ export default function initModel(): {
         };
       }
     };
+
+    function clearAllProperties<D extends Object>(obj: D): D {
+      const keys = Object.keys(obj);
+      keys.forEach((key) => {
+        Reflect.deleteProperty(obj, key);
+      });
+      return obj;
+    }
 
     /**
      * 从model库中，根据id或id数组查询数据
