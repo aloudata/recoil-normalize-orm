@@ -6,14 +6,16 @@
     "types": "dist/index.d.ts",
     "scripts": {
         "test": "jest",
-        "lint": "eslint",
+        "lint": "eslint ./src",
         "build": "npm run lint;npm run test;export NODE_ENV=production;webpack"
     },
     "repository": {
         "type": "git",
         "url": "git+https://github.com/FreeJoe/normailze-orm.git"
     },
-    "files": ["dist"],
+    "files": [
+        "dist"
+    ],
     "keywords": [
         "orm",
         "normalize"
@@ -29,6 +31,7 @@
         "recoil": "^0.2.0"
     },
     "devDependencies": {
+        "@aloudata/eslint-config-base": "0.0.2",
         "@babel/preset-env": "^7.14.2",
         "@babel/preset-typescript": "^7.13.0",
         "@testing-library/jest-dom": "^5.12.0",
@@ -36,11 +39,11 @@
         "@types/jest": "^26.0.23",
         "@types/lodash": "^4.14.168",
         "@types/recoil": "0.0.1",
-        "@typescript-eslint/eslint-plugin": "^4.22.1",
+        "@typescript-eslint/eslint-plugin": "^4.26.0",
         "@typescript-eslint/parser": "^4.22.1",
         "@webpack-cli/generators": "^2.1.0",
         "declaration-bundler-webpack-plugin": "^1.0.3",
-        "eslint": "^7.26.0",
+        "eslint": "^7.27.0",
         "jest": "^26.6.3",
         "lodash": "^4.17.21",
         "react": "^17.0.2",
@@ -53,5 +56,12 @@
         "typescript": "^4.2.4",
         "webpack": "^5.37.1",
         "webpack-cli": "^4.7.0"
+    },
+    "dependencies": {
+        "eslint-config-airbnb-typescript": "^12.3.1",
+        "eslint-plugin-import": "^2.23.4",
+        "eslint-plugin-jsx-a11y": "^6.4.1",
+        "eslint-plugin-react": "^7.24.0",
+        "eslint-plugin-react-hooks": "^4.2.0"
     }
 }
