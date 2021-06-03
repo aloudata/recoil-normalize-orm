@@ -6,6 +6,7 @@ import {
 import { AnyData, IModelDataMap, IModelStaticMethods, IModelId, IModelMethods, IModelOpt, IRecoilSetOpt, } from './types';
 import ModelManager from './modelManager';
 import _ from 'lodash';
+import { useCallback } from 'react';
 
 export default function initModel(): {
   createModel: <T extends { [key: string]: AnyData }>(opt: IModelOpt) => IModelMethods<T>;
@@ -101,31 +102,36 @@ export default function initModel(): {
       getDataSelector,
       useChangeData: () => {
         const [storeMap, setStoreMap] = useRecoilState(updaterSelectorItem);
-        return {
-          set: (id, data) => {
-            const newStoreMap = _.cloneDeep(storeMap);
-            const ids = normalize<T>(currModelName, newStoreMap, id, data);
-            if (!_.isEqual(newStoreMap, storeMap)) {
-              setStoreMap(newStoreMap);
-            }
-            return ids;
-          },
-          remove: (id) => {
-            if (id === undefined) {
-              throw new Error('remove id is undefined');
-            }
-            const newStoreMap = _.cloneDeep(storeMap);
-            const modelData = newStoreMap[currModelName];
-            // id值可能是字符串或数字，而存在表中的key是字符串，因此要将id值转成字符串进行比较
-            const targetIds = _.map(_.isArray(id) ? id : [id], (idVal) => idVal.toString());
-            _.forOwn(modelData, (dataItem, idVal) => {
-              if (targetIds.indexOf(idVal) !== -1) {
-                // 删除的数据，在存储中依然保留id的key，只是将数据改为null。在查询时会过滤掉为null的数据项
-                modelData[idVal] = null;
-              }
-            });
+
+        const set = useCallback((id, data) => {
+          const newStoreMap = _.cloneDeep(storeMap);
+          const ids = normalize<T>(currModelName, newStoreMap, id, data);
+          if (!_.isEqual(newStoreMap, storeMap)) {
             setStoreMap(newStoreMap);
-          },
+          }
+          return ids;
+        }, [storeMap, setStoreMap]);
+
+        const remove = useCallback((id) => {
+          if (id === undefined) {
+            throw new Error('remove id is undefined');
+          }
+          const newStoreMap = _.cloneDeep(storeMap);
+          const modelData = newStoreMap[currModelName];
+          // id值可能是字符串或数字，而存在表中的key是字符串，因此要将id值转成字符串进行比较
+          const targetIds = _.map(_.isArray(id) ? id : [id], (idVal) => idVal.toString());
+          _.forOwn(modelData, (dataItem, idVal) => {
+            if (targetIds.indexOf(idVal) !== -1) {
+              // 删除的数据，在存储中依然保留id的key，只是将数据改为null。在查询时会过滤掉为null的数据项
+              modelData[idVal] = null;
+            }
+          });
+          setStoreMap(newStoreMap);
+        }, [storeMap, setStoreMap]);
+
+        return {
+          set,
+          remove,
         };
       }
     };

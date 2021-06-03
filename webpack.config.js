@@ -34,6 +34,7 @@ const config = {
     },
     externals: {
         recoil: 'recoil',
+        react: 'react',
         lodash: {
             commonjs: 'lodash',
             commonjs2: 'lodash',
