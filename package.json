@@ -11,7 +11,7 @@
     "build": "npm run lint;npm run test;export NODE_ENV=production;webpack",
     "prepare": "husky install",
     "prepublishOnly": "pinst --disable && npm run lint && npm run test && npm run build",
-    "postpublish": "pinst --enable"
+    "postpublish": "pinst --enable && PACKAGE_VERSION=$(cat package.json | grep \\\"version\\\" | head -1 | awk -F: '{ print $2 }' | sed 's/[\",]//g' | tr -d '[[:space:]]') && git tag v$PACKAGE_VERSION && git push --tags"
   },
   "repository": {
     "type": "git",
