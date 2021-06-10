@@ -1,69 +1,75 @@
 {
-    "name": "@aloudata/recoil-normalize-orm",
-    "version": "0.0.5",
-    "description": "",
-    "main": "dist/main.js",
-    "types": "dist/index.d.ts",
-    "scripts": {
-        "test": "jest",
-        "lint": "eslint ./src",
-        "build": "npm run lint;npm run test;export NODE_ENV=production;webpack"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/FreeJoe/normailze-orm.git"
-    },
-    "files": [
-        "dist"
-    ],
-    "keywords": [
-        "orm",
-        "normalize"
-    ],
-    "author": "freeJoe",
-    "license": "MIT",
-    "bugs": {
-        "url": "https://github.com/FreeJoe/normailze-orm/issues"
-    },
-    "homepage": "https://github.com/FreeJoe/normailze-orm#readme",
-    "peerDependencies": {
-        "lodash": "^4.17.21",
-        "recoil": "^0.2.0",
-        "react": "^17.0.2",
-        "react-dom": "^17.0.2"
-    },
-    "devDependencies": {
-        "@aloudata/eslint-config-base": "0.0.2",
-        "@babel/preset-env": "^7.14.2",
-        "@babel/preset-typescript": "^7.13.0",
-        "@testing-library/jest-dom": "^5.12.0",
-        "@testing-library/react-hooks": "^5.1.2",
-        "@types/jest": "^26.0.23",
-        "@types/lodash": "^4.14.168",
-        "@types/recoil": "0.0.1",
-        "@typescript-eslint/eslint-plugin": "^4.26.0",
-        "@typescript-eslint/parser": "^4.22.1",
-        "@webpack-cli/generators": "^2.1.0",
-        "declaration-bundler-webpack-plugin": "^1.0.3",
-        "eslint": "^7.27.0",
-        "jest": "^26.6.3",
-        "lodash": "^4.17.21",
-        "react": "^17.0.2",
-        "react-dom": "^17.0.2",
-        "react-test-renderer": "^17.0.2",
-        "recoil": "^0.2.0",
-        "ts-jest": "^26.5.6",
-        "ts-loader": "^9.2.1",
-        "ts-node": "^9.1.1",
-        "typescript": "^4.2.4",
-        "webpack": "^5.37.1",
-        "webpack-cli": "^4.7.0"
-    },
-    "dependencies": {
-        "eslint-config-airbnb-typescript": "^12.3.1",
-        "eslint-plugin-import": "^2.23.4",
-        "eslint-plugin-jsx-a11y": "^6.4.1",
-        "eslint-plugin-react": "^7.24.0",
-        "eslint-plugin-react-hooks": "^4.2.0"
-    }
+  "private": false,
+  "name": "@aloudata/recoil-normalize-orm",
+  "version": "0.0.7",
+  "description": "",
+  "main": "dist/main.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint ./src",
+    "build": "npm run lint;npm run test;export NODE_ENV=production;webpack",
+    "prepare": "husky install",
+    "prepublishOnly": "pinst --disable && npm run lint && npm run test && npm run build",
+    "postpublish": "pinst --enable"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FreeJoe/normailze-orm.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "orm",
+    "normalize"
+  ],
+  "author": "freeJoe",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/FreeJoe/normailze-orm/issues"
+  },
+  "homepage": "https://github.com/FreeJoe/normailze-orm#readme",
+  "peerDependencies": {
+    "lodash": "^4.17.21",
+    "recoil": "^0.2.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  },
+  "devDependencies": {
+    "@aloudata/eslint-config-base": "0.0.2",
+    "@babel/preset-env": "^7.14.2",
+    "@babel/preset-typescript": "^7.13.0",
+    "@testing-library/jest-dom": "^5.12.0",
+    "@testing-library/react-hooks": "^5.1.2",
+    "@types/jest": "^26.0.23",
+    "@types/lodash": "^4.14.168",
+    "@types/recoil": "0.0.1",
+    "@typescript-eslint/eslint-plugin": "^4.26.0",
+    "@typescript-eslint/parser": "^4.22.1",
+    "@webpack-cli/generators": "^2.1.0",
+    "declaration-bundler-webpack-plugin": "^1.0.3",
+    "eslint": "^7.27.0",
+    "husky": "^6.0.0",
+    "jest": "^26.6.3",
+    "lodash": "^4.17.21",
+    "pinst": "^2.1.6",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-test-renderer": "^17.0.2",
+    "recoil": "^0.2.0",
+    "ts-jest": "^26.5.6",
+    "ts-loader": "^9.2.1",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.2.4",
+    "webpack": "^5.37.1",
+    "webpack-cli": "^4.7.0"
+  },
+  "dependencies": {
+    "eslint-config-airbnb-typescript": "^12.3.1",
+    "eslint-plugin-import": "^2.23.4",
+    "eslint-plugin-jsx-a11y": "^6.4.1",
+    "eslint-plugin-react": "^7.24.0",
+    "eslint-plugin-react-hooks": "^4.2.0"
+  }
 }

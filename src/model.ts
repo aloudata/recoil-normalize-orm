@@ -48,8 +48,7 @@ export default function initModel(): {
     const getDataSelector = selectorFamily<T | T[] | null, IModelId[] | IModelId>({
       key: getSelectorName(currModelName, 'getData'),
       get: (ids) => ({ get, }: { get: GetRecoilValue }) => {
-        const dataMap = get(atomItem);
-        const data = getValue<T>(dataMap, ids);
+        const data = getValue<T>(get, currModelName, ids);
         if (data === null) {
           return null;
         }
@@ -65,8 +64,7 @@ export default function initModel(): {
     const getShallowDataSelector = selectorFamily<T | T[] | null, IModelId[] | IModelId>({
       key: getSelectorName(currModelName, 'getShallowData'),
       get: (ids) => ({ get }: { get: GetRecoilValue }) => {
-        const dataMap = get(atomItem);
-        return getValue<T>(dataMap, ids);
+        return getValue<T>(get, currModelName, ids);
       },
     });
 
@@ -150,35 +148,82 @@ export default function initModel(): {
 
     /**
      * 从model库中，根据id或id数组查询数据
+     * @param get 获取atom数据的方法
      * @param dataMap model数据库
      * @param ids 查询的id或id列表
      * @param parse 处理单个数据的函数
      * @returns
      */
-    function getValue<D>(
-      dataMap: IModelDataMap<D>,
+    function getValue<D extends { [key: string]: AnyData }>(
+      get: GetRecoilValue,
+      modelName: string,
       ids: IModelId[] | IModelId,
       parse?: (dataItem: D) => D | null
     ): D[] | D | null {
       if (ids === null || ids === undefined) {
         return null;
       }
+      const modelInstance = modelManager.getModel<D>(modelName);
+      const dataMap = get(modelInstance.atom);
+      const { fields } = modelInstance.option;
 
       const parseDataItem = parse || ((dataItem) => dataItem);
       if (_.isArray(ids)) {
         // 批量读取数据
-        const dataList = _.map(ids, (id) => parseDataItem(dataMap[id]));
-        // 过滤掉null、undefined等不存在的数据
+        const dataList = _.map(ids, (id) => {
+          const singleData = getDataItemWithValidFieldValue<D>(get, dataMap[id], fields);
+          // 如果数据被删除了，dataMap[id]会不存在
+          return singleData ? parseDataItem(singleData) : null;
+        });
+        // 过滤掉不存在的数据
         return _.filter(dataList, (dataItem) => !!dataItem) as D[];
       }
       // 读取单个数据
       const id = ids as IModelId;
-      const dataItem = parseDataItem(dataMap[id]);
-      return dataItem !== undefined ? dataItem : null;
+      const singleData = getDataItemWithValidFieldValue<D>(get, dataMap[id], fields);
+      // 如果数据被删除了，dataMap[id]会不存在
+      if (!singleData) {
+        return null;
+      }
+      return singleData ? parseDataItem(singleData) : null;
     }
 
     /**
-     * 递归地将单个数据项中的经过处理的子model数据，填充为完整地数据项
+     * 获取过滤掉不存在的子 model id 后的单条数据
+     * @example 过滤不存在的数组值。假设c1对应的数据已被删除 getDataItemWithValidFieldValue({ bookId: 1, comments: ['c1', 'c2'] }) -> { bookId: 1, comments: ['c2'] }
+     * @example 过滤掉不存在的单条值。假设user1对应的数据已被删除 getDataItemWithValidFieldValue({ bookId: 1, user: 'user1' }) -> { bookId: 1, user: null }
+     * @param get 获取atom数据的方法
+     * @param dataItem 单条数据
+     * @param fields model配置中的fields定义，表示数据字段和子model的关联关系
+     * @returns 过滤掉不存在的子 model id 后的单条数据
+     */
+    function getDataItemWithValidFieldValue<D extends { [key: string]: AnyData }>(
+      get: GetRecoilValue, dataItem: D, fields: { [key: string]: string } = {}
+    ): D {
+      if (!dataItem) {
+        return dataItem;
+      }
+      // 这里浅拷贝就行，因为要替换的子model的值，要么是IModelId，要么是IModelId[]，不会是深层结构
+      const newDataItem: D = _.clone(dataItem);
+      _.forOwn(dataItem, (val, key: string) => {
+        const subModelName = fields[key];
+        if (subModelName) {
+          // 对应的是子model的id数据
+          const subModelMap = get(modelManager.getModel(subModelName).atom);
+          if (_.isArray(val)) {
+            // 处理数组形式，过滤掉不存在的id
+            (newDataItem as { [k: string]: AnyData })[key] = _.filter(val, (singleId) => !!subModelMap[singleId]);
+          } else {
+            // 如果是单条id，对应的数据不存在，则设置为null
+            (newDataItem as { [k: string]: AnyData })[key] = subModelMap[val] ? val : null;
+          }
+        }
+      });
+      return newDataItem;
+    }
+
+    /**
+     * 递归地将单个数据项中的经过处理的子model数据，填充为完整的数据项
      * @example {books:[1,2]} -> {books: [{id:1, name:'book1'}, {id:2, name:'book2'}]}
      * @param get recoil的get方法
      * @param dataItem 单个数据项
@@ -192,9 +237,7 @@ export default function initModel(): {
       _.forOwn(fields, (subModelName, field) => {
         const subModelIds = newDataItem[field];
         if (subModelIds !== undefined) {
-          const subModelInstance = modelManager.getModel(subModelName);
-          const subModelAtom = subModelInstance.atom;
-          const subModelData = getValue<T>(get(subModelAtom) as IModelDataMap<T>, subModelIds,
+          const subModelData = getValue<T>(get, subModelName, subModelIds,
             (singleData: T) => getDataItemRecursively(get, subModelName, singleData));
           (newDataItem as { [key: string]: AnyData })[field] = subModelData;
         }

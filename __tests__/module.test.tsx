@@ -15,7 +15,7 @@ const wrapper = (props: { children: React.ReactNode }) => {
 const { createModel, useChangeData, } = initModel();
 const bookStore = createModel<IBookItem>(Book);
 const userStore = createModel<IUserItem>(User);
-createModel<ICommentItem>(Comment);
+const commentStore = createModel<ICommentItem>(Comment);
 const tagStore = createModel<ITagItem>(Tag);
 
 describe('model', () => {
@@ -257,6 +257,75 @@ describe('model', () => {
             result.current.remove([2, 3]);
         });
         expect(result.current.data).toEqual([booksData[0]]);
+    });
+
+    // 如果删除了一条数据，会影响以数组形式引用它的数据
+    // 比如Book中的comments中某个id对应的数据被删了，在查询Book时，comments数组中将查不到被删除的commentId
+    test('cant find remove ids in shallowData', () => {
+        const { result, } = renderHook(() => {
+            const data = useRecoilValue(bookStore.getDataSelector([1, 2]));
+            const shallowData = useRecoilValue(bookStore.getShallowDataSelector(1)) as IBookItem;
+            const { remove: removeBook, set, } = bookStore.useChangeData();
+            const { remove: removeComment, } = commentStore.useChangeData();
+            return {
+                set,
+                removeBook,
+                removeComment,
+                data,
+                shallowData,
+            }
+        }, { wrapper, });
+        act(() => {
+            result.current.set(booksData);
+        });
+        act(() => {
+          result.current.removeComment('c1');
+        });
+        expect(result.current.shallowData.comments).toEqual(['c2']);
+    });
+
+    test('cant find removed ids in deep data', () => {
+        const { result, } = renderHook(() => {
+            const data = useRecoilValue(bookStore.getDataSelector([1, 2])) as IBookItem[];
+            const { remove: removeComment, } = commentStore.useChangeData();
+            const { remove: removeBook, set, } = bookStore.useChangeData();
+            return {
+                set,
+                removeBook,
+                removeComment,
+                data,
+            }
+        }, { wrapper, });
+        act(() => {
+            result.current.set(booksData);
+        });
+        act(() => {
+          result.current.removeComment(['c1']);
+        });
+        expect(result.current.data[0].comments.length).toEqual(1);
+        expect(result.current.data[0].comments[0].cid).toEqual('c2');
+    });
+
+    // 如果删除了一条数据，会影响以单条数据引用它的数据
+    // 比如Book中的author对应的数据被删了，在查询Book时，author字段的值会变为null
+    test('still can find removed id in shallow data', () => {
+        const { result, } = renderHook(() => {
+            const data = useRecoilValue(bookStore.getShallowDataSelector([1, 2])) as IBookItem[];
+            const { remove: removeUser } = userStore.useChangeData();
+            const { set, } = bookStore.useChangeData();
+            return {
+                set,
+                removeUser,
+                data,
+            }
+        }, { wrapper, });
+        act(() => {
+            result.current.set(booksData);
+        });
+        act(() => {
+          result.current.removeUser('1');
+        });
+        expect(result.current.data[0].author).toEqual(null);
     });
 });
 
