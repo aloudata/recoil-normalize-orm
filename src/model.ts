@@ -1,5 +1,5 @@
 import {
-  atom, selector, useRecoilState, useResetRecoilState, AtomOptions, useRecoilValue, GetRecoilValue,
+  atom, selector, useRecoilState, useResetRecoilState, AtomOptions, useRecoilValue, GetRecoilValue, SetRecoilState, ResetRecoilState, DefaultValue,
 } from 'recoil';
 import { AnyData, IModelDataMap, IModelStaticMethods, IModelId, IModelOpt, IRecoilSetOpt, } from './types';
 import ModelManager from './modelManager';
@@ -7,7 +7,9 @@ import _ from 'lodash';
 import { useCallback, useMemo } from 'react';
 
 export default function initModel(): {
-  createModel: <T extends { [key: string]: AnyData }>(opt: IModelOpt) => IModelMethods<T>;
+  createModel: <DataItem extends { [key: string]: AnyData }, NormalizedDataItem extends { [key: string]: AnyData } = DataItem>(
+    opt: IModelOpt
+  ) => IModelMethods<DataItem, NormalizedDataItem>;
   useChangeData: () => IModelStaticMethods;
 } {
   const modelManager = new ModelManager();
@@ -30,38 +32,63 @@ export default function initModel(): {
     useChangeData,
   };
 
-  function createModel<T extends { [key: string]: AnyData }>(opt: IModelOpt): IModelMethods<T> {
+  function createModel<DataItem extends { [key: string]: AnyData }, NormalizedDataItem extends { [key: string]: AnyData } = DataItem>(
+    opt: IModelOpt
+  ): IModelMethods<DataItem, NormalizedDataItem> {
     const { name: currModelName } = opt;
 
     if (modelManager.hasModel(currModelName)) {
       throw new Error(`model name existed: ${currModelName}`);
     }
 
-    const atomOpt: AtomOptions<IModelDataMap<T>> = {
+    const atomOpt: AtomOptions<IModelDataMap<NormalizedDataItem>> = {
       key: getAtomName(currModelName),
-      default: {} as T,
+      default: {} as IModelDataMap<NormalizedDataItem>,
     };
-    const atomItem = atom<IModelDataMap<T>>(atomOpt);
+    const atomItem = atom<IModelDataMap<NormalizedDataItem>>(atomOpt);
 
-    const getModelDataWithDepsSelector = selector<{ [key: string]: IModelDataMap<AnyData> }>({
-      key: getSelectorName(currModelName, 'set'),
+    // 根据model依赖列表，组装出更新当前model需要的所有已在store中的数据，包含当前model的数据，及所有子孙model的数据
+    function getModelsMapByDeps(get: GetRecoilValue, modelDeps: string[]) {
+      const res: { [key: string]: IModelDataMap<AnyData> } = {};
+      _.forEach(modelDeps, (modelDep) => {
+        res[modelDep] = get(modelManager.getModel(modelDep).atom);
+      });
+      const currModelInstance = modelManager.getModel(currModelName);
+      res[currModelName] = get(currModelInstance.atom);
+      return res;
+    }
+
+    function setSelector(
+      { set }: { set: SetRecoilState; get: GetRecoilValue; reset: ResetRecoilState; },
+      newValue: DefaultValue | { [key: string]: IModelDataMap<AnyData> }
+    ) {
+      _.forOwn(newValue, (newModalDataMap: IModelDataMap<AnyData>, modelName) => {
+        const modelInstance = modelManager.getModel(modelName);
+        set(modelInstance.atom, newModalDataMap);
+      });
+    }
+
+    // 获取当前model所有依赖的model的数据，并整合成一个大map
+    const getModelDataWithAllDepsSelector = selector<{ [key: string]: IModelDataMap<AnyData> }>({
+      key: getSelectorName(currModelName, 'allDeps'),
+      get: ({ get, }) => {
+        const modelDeps = modelManager.getDeps(currModelName);
+        return getModelsMapByDeps(get, modelDeps);
+      },
+      set: setSelector,
+    });
+
+    // 只获取当前model直接依赖的子model的数据，并整合成一个大map
+    const getModelDataWithShallowDepsSelector = selector<{ [key: string]: IModelDataMap<AnyData> }>({
+      key: getSelectorName(currModelName, 'shallowDeps'),
       get: ({ get, }) => {
         // 组装出更新当前model需要的所有已在store中的数据，包含当前model的数据，及所有子孙model的数据
-        const modelDeps = modelManager.getDeps(currModelName);
-        const res: { [key: string]: IModelDataMap<AnyData> } = {};
-        _.forEach(modelDeps, (modelDep) => {
-          res[modelDep] = get(modelManager.getModel(modelDep).atom);
-        });
-        const currModelInstance = modelManager.getModel(currModelName);
-        res[currModelName] = get(currModelInstance.atom);
-        return res;
+        const modelInstance = modelManager.getModel(currModelName);
+        const { fields = {} } = modelInstance.option;
+        const modelDeps = _.values(fields);
+        return getModelsMapByDeps(get, modelDeps);
       },
-      set: ({ set, }, newValue) => {
-        _.forOwn(newValue, (newModalDataMap: IModelDataMap<AnyData>, modelName) => {
-          const modelInstance = modelManager.getModel(modelName);
-          set(modelInstance.atom, newModalDataMap);
-        });
-      },
+      set: setSelector,
     });
 
     modelManager.setModel(currModelName, {
@@ -77,20 +104,12 @@ export default function initModel(): {
      * @returns
      */
     function useGetValue(ids: IModelId[] | IModelId) {
-      const relatedModelMap = useRecoilValue(getModelDataWithDepsSelector);
+      const relatedModelMap = useRecoilValue(getModelDataWithAllDepsSelector);
       return useMemo(() => {
         const getModelMap = (modelName: string) => relatedModelMap[modelName];
-        const data = getValueInModelMap<T>(getModelMap, currModelName, ids);
-        if (data === null) {
-          return null;
-        }
-        if (_.isArray(ids)) {
-          // 批量读取数据
-          return _.map(data as T[], (dataItem) => getDataItemRecursively(getModelMap, currModelName, dataItem));
-        }
-        // 读取单个数据
-        return getDataItemRecursively(getModelMap, currModelName, data as T);
-      }, [relatedModelMap, ids]);
+        return getValueInModelMap<DataItem, NormalizedDataItem>(getModelMap, currModelName, ids,
+          (singleData: NormalizedDataItem) => getDataItemRecursively(getModelMap, currModelName, singleData));
+      }, [relatedModelMap, ids]) as DataItem[] | DataItem | null;
     }
 
     /**
@@ -100,7 +119,7 @@ export default function initModel(): {
      * @returns
      */
     function useGetShallowValue(ids: IModelId[] | IModelId) {
-      const relatedModelMap = useRecoilValue(getModelDataWithDepsSelector);
+      const relatedModelMap = useRecoilValue(getModelDataWithShallowDepsSelector);
       return useMemo(() => {
         return getValueInModelMap((modelName: string) => relatedModelMap[modelName], currModelName, ids);
       }, [relatedModelMap, ids]);
@@ -108,29 +127,21 @@ export default function initModel(): {
 
     function getValueInSelector(get: GetRecoilValue, ids: IModelId[] | IModelId) {
       const getModelMap = (modelName: string) => {
-        const modelInstance = modelManager.getModel<T>(modelName);
+        const modelInstance = modelManager.getModel<NormalizedDataItem>(modelName);
         return get(modelInstance.atom);
       };
-      const data = getValueInModelMap<T>(getModelMap, currModelName, ids);
-      if (data === null) {
-        return null;
-      }
-      if (_.isArray(ids)) {
-        // 批量读取数据
-        return _.map(data as T[], (dataItem) => getDataItemRecursively(getModelMap, currModelName, dataItem));
-      }
-      // 读取单个数据
-      return getDataItemRecursively(getModelMap, currModelName, data as T);
+      return getValueInModelMap<DataItem, NormalizedDataItem>(getModelMap, currModelName, ids,
+        (singleData: NormalizedDataItem) => getDataItemRecursively(getModelMap, currModelName, singleData)) as DataItem[] | DataItem | null;
     }
 
     function getShallowValueInSelector(get: GetRecoilValue, ids: IModelId[] | IModelId) {
-      return getValueInModelMap((modelName: string) => {
-        const modelInstance = modelManager.getModel<T>(modelName);
+      return getValueInModelMap<DataItem, NormalizedDataItem>((modelName: string) => {
+        const modelInstance = modelManager.getModel<NormalizedDataItem>(modelName);
         return get(modelInstance.atom);
-      }, currModelName, ids);
+      }, currModelName, ids) as (NormalizedDataItem[] | NormalizedDataItem | null);
     }
 
-    const mutableStoreMap: { [key: string]: IModelDataMap<T> } = {};
+    const mutableStoreMap: { [key: string]: IModelDataMap<NormalizedDataItem> } = {};
 
     return {
       getValue: getValueInSelector,
@@ -138,7 +149,7 @@ export default function initModel(): {
       useGetValue,
       useGetShallowValue,
       useChangeData: () => {
-        const [storeMap, setStoreMap] = useRecoilState(getModelDataWithDepsSelector);
+        const [storeMap, setStoreMap] = useRecoilState(getModelDataWithAllDepsSelector);
 
         // 防止 useChangeData 返回的方法生成新的方法对象，导致用了 useChangeData 返回方法的 hook 的依赖项多次变更
         clearAllProperties(mutableStoreMap);
@@ -146,7 +157,7 @@ export default function initModel(): {
 
         const set = useCallback((id, data) => {
           const newStoreMap = _.cloneDeep(mutableStoreMap);
-          const ids = normalize<T>(currModelName, newStoreMap, id, data);
+          const ids = normalize<DataItem | NormalizedDataItem>(currModelName, newStoreMap, id, data);
           if (!_.isEqual(newStoreMap, mutableStoreMap)) {
             setStoreMap(newStoreMap);
           }
@@ -192,16 +203,16 @@ export default function initModel(): {
      * @param parse 处理单个数据的函数
      * @returns
      */
-    function getValueInModelMap<D extends { [key: string]: AnyData }>(
-      getModelMap: (modelName: string) => IModelDataMap<D>,
+    function getValueInModelMap<TDataItem, TNormalizedDataItem>(
+      getModelMap: (modelName: string) => IModelDataMap<TNormalizedDataItem>,
       modelName: string,
       ids: IModelId[] | IModelId,
-      parse?: (dataItem: D) => D | null
-    ): D[] | D | null {
+      parse?: (dataItem: TNormalizedDataItem) => TDataItem | null
+    ): TDataItem[] | TNormalizedDataItem[] | TDataItem | TNormalizedDataItem | null {
       if (ids === null || ids === undefined) {
         return null;
       }
-      const modelInstance = modelManager.getModel<D>(modelName);
+      const modelInstance = modelManager.getModel<TNormalizedDataItem>(modelName);
       const dataMap = getModelMap(modelName);
       const { fields } = modelInstance.option;
 
@@ -209,16 +220,16 @@ export default function initModel(): {
       if (_.isArray(ids)) {
         // 批量读取数据
         const dataList = _.map(ids, (id) => {
-          const singleData = getDataItemWithValidFieldValue<D>(getModelMap, dataMap[id], fields);
+          const singleData = getDataItemWithValidFieldValue<TNormalizedDataItem>(getModelMap, dataMap[id], fields);
           // 如果数据被删除了，dataMap[id]会不存在
           return singleData ? parseDataItem(singleData) : null;
         });
         // 过滤掉不存在的数据
-        return _.filter(dataList, (dataItem) => !!dataItem) as D[];
+        return _.filter(dataList, (dataItem) => !!dataItem) as (TDataItem[] | TNormalizedDataItem[]);
       }
       // 读取单个数据
       const id = ids as IModelId;
-      const singleData = getDataItemWithValidFieldValue<D>(getModelMap, dataMap[id], fields);
+      const singleData = getDataItemWithValidFieldValue<TNormalizedDataItem>(getModelMap, dataMap[id], fields);
       // 如果数据被删除了，dataMap[id]会不存在
       if (!singleData) {
         return null;
@@ -271,23 +282,23 @@ export default function initModel(): {
      * @returns object
      */
     function getDataItemRecursively(
-      getModelMap: (modelName: string) => IModelDataMap<T>,
+      getModelMap: (modelName: string) => IModelDataMap<NormalizedDataItem>,
       modelName: string,
-      dataItem: T
-    ) {
-      const newDataItem = _.cloneDeep<T>(dataItem);
+      dataItem: NormalizedDataItem
+    ): DataItem {
+      const newDataItem = _.cloneDeep<NormalizedDataItem>(dataItem);
       const modelInstance = modelManager.getModel(modelName);
       const fields = modelInstance.option.fields;
       // 将子model的id替换成真实数据
       _.forOwn(fields, (subModelName, field) => {
         const subModelIds = newDataItem[field];
         if (subModelIds !== undefined) {
-          const subModelData = getValueInModelMap<T>(getModelMap, subModelName, subModelIds,
-            (singleData: T) => getDataItemRecursively(getModelMap, subModelName, singleData));
+          const subModelData = getValueInModelMap<DataItem, NormalizedDataItem>(getModelMap, subModelName, subModelIds,
+            (singleData: NormalizedDataItem) => getDataItemRecursively(getModelMap, subModelName, singleData));
           (newDataItem as { [key: string]: AnyData })[field] = subModelData;
         }
       });
-      return newDataItem;
+      return newDataItem as unknown as DataItem;
     }
 
     function normalize<D>(
@@ -414,13 +425,13 @@ type GetValueInSelector<T> = (get: GetRecoilValue, ids: IModelId[] | IModelId) =
 type SetData<T> = (id: IModelId | Partial<T> | Partial<T>[], data?: Partial<T>) => IModelId | IModelId[] | null;
 type RemoveData = (id: IModelId | IModelId[]) => void;
 
-export interface IModelMethods<T> {
-  useGetValue: GetDataValue<T>;
-  useGetShallowValue: GetDataValue<T>;
+export interface IModelMethods<DataItem, NormalizedDataItem> {
+  useGetValue: GetDataValue<DataItem>;
+  useGetShallowValue: GetDataValue<NormalizedDataItem>;
   useChangeData: () => {
-    set: SetData<T>;
+    set: SetData<DataItem>;
     remove: RemoveData;
   };
-  getValue: GetValueInSelector<T>;
-  getShallowValue: GetValueInSelector<T>;
+  getValue: GetValueInSelector<DataItem>;
+  getShallowValue: GetValueInSelector<NormalizedDataItem>;
 }

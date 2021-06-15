@@ -13,9 +13,9 @@ const wrapper = (props: { children: React.ReactNode }) => {
 };
 
 const { createModel, useChangeData, } = initModel();
-const bookStore = createModel<IBookItem>(Book);
+const bookStore = createModel<IBookItem, INormalizedBookItem>(Book);
 const userStore = createModel<IUserItem>(User);
-const commentStore = createModel<ICommentItem>(Comment);
+const commentStore = createModel<ICommentItem, INormalizedCommentItem>(Comment);
 const tagStore = createModel<ITagItem>(Tag);
 
 describe('model', () => {
@@ -264,7 +264,7 @@ describe('model', () => {
   test('cant find remove ids in shallowData', () => {
     const { result, } = renderHook(() => {
       const data = bookStore.useGetValue([1, 2]);
-      const shallowData = bookStore.useGetShallowValue(1) as IBookItem;
+      const shallowData = bookStore.useGetShallowValue(1) as INormalizedBookItem;
       const { remove: removeBook, set, } = bookStore.useChangeData();
       const { remove: removeComment, } = commentStore.useChangeData();
       return {
@@ -310,7 +310,7 @@ describe('model', () => {
   // 比如Book中的author对应的数据被删了，在查询Book时，author字段的值会变为null
   test('still can find removed id in shallow data', () => {
     const { result, } = renderHook(() => {
-      const data = bookStore.useGetShallowValue([1, 2]) as IBookItem[];
+      const data = bookStore.useGetShallowValue([1, 2]) as INormalizedBookItem[];
       const { remove: removeUser } = userStore.useChangeData();
       const { set, } = bookStore.useChangeData();
       return {
@@ -443,6 +443,66 @@ describe('model', () => {
       summary: 'new start',
     }]);
   });
+
+  // 获取shallowValue时，只受直接依赖的model的变化影响，无视间接依赖model
+  test('useGetShallowValue depends direct dependencies, direct dep not changed', () => {
+    const { result, } = renderHook(() => {
+      const ids = useMemo(() => [1, 2], []);
+      const shallowBooks = bookStore.useGetShallowValue(ids) as INormalizedBookItem[];
+      const { set: setBook, } = bookStore.useChangeData();
+      const { set: setTag, } = tagStore.useChangeData();
+      return { shallowBooks, setBook, setTag };
+    }, { wrapper, });
+    act(() => {
+      result.current.setBook(booksData);
+    });
+    let lastShallowData: INormalizedBookItem[] = [];
+    let currentShallowData: INormalizedBookItem[] = [];
+    act(() => {
+      lastShallowData = result.current.shallowBooks;
+    });
+    // 由于User和Tag不相关，因此改变User不会改变Tag
+    act(() => {
+      result.current.setTag('t08', {
+        tid: 't08',
+        name: 'tag8',
+      });
+    });
+    act(() => {
+      currentShallowData = result.current.shallowBooks;
+    });
+    expect(lastShallowData === currentShallowData).toEqual(true);
+  });
+
+  test('useGetShallowValue depends direct dependencies, direct dep changed', () => {
+    const { result, } = renderHook(() => {
+      const ids = useMemo(() => [1, 2], []);
+      const shallowBooks = bookStore.useGetShallowValue(ids) as INormalizedBookItem[];
+      const { set: setBook, } = bookStore.useChangeData();
+      const { set: setUser, } = userStore.useChangeData();
+      return { shallowBooks, setBook, setUser };
+    }, { wrapper, });
+    act(() => {
+      result.current.setBook(booksData);
+    });
+    let lastShallowData: INormalizedBookItem[] = [];
+    let currentShallowData: INormalizedBookItem[] = [];
+    act(() => {
+      lastShallowData = result.current.shallowBooks;
+    });
+    // 由于User和Tag不相关，因此改变User不会改变Tag
+    act(() => {
+      result.current.setUser('user9', {
+        userId: 'user9',
+        name: 'user9',
+        age: 40,
+      });
+    });
+    act(() => {
+      currentShallowData = result.current.shallowBooks;
+    });
+    expect(lastShallowData === currentShallowData).toEqual(false);
+  });
 });
 
 interface IBookItem {
@@ -450,6 +510,13 @@ interface IBookItem {
   name: string;
   author: IUserItem;
   comments: ICommentItem[];
+}
+
+interface INormalizedBookItem {
+  id: number;
+  name: string;
+  author: string;
+  comments: string[];
 }
 
 interface IUserItem {
@@ -463,6 +530,12 @@ interface ICommentItem {
   text: string;
   user: IUserItem;
   tags: ITagItem[];
+}
+
+interface INormalizedCommentItem {
+  cid: string;
+  text: string;
+  user: string[];
 }
 
 interface ITagItem {
