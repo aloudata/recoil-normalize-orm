@@ -80,7 +80,7 @@ export default function initModel(): {
       const relatedModelMap = useRecoilValue(getModelDataWithDepsSelector);
       return useMemo(() => {
         const getModelMap = (modelName: string) => relatedModelMap[modelName];
-        const data = getValue<T>(getModelMap, currModelName, ids);
+        const data = getValueInModelMap<T>(getModelMap, currModelName, ids);
         if (data === null) {
           return null;
         }
@@ -102,7 +102,7 @@ export default function initModel(): {
     function useGetShallowValue(ids: IModelId[] | IModelId) {
       const relatedModelMap = useRecoilValue(getModelDataWithDepsSelector);
       return useMemo(() => {
-        return getValue((modelName: string) => relatedModelMap[modelName], currModelName, ids);
+        return getValueInModelMap((modelName: string) => relatedModelMap[modelName], currModelName, ids);
       }, [relatedModelMap, ids]);
     }
 
@@ -111,7 +111,7 @@ export default function initModel(): {
         const modelInstance = modelManager.getModel<T>(modelName);
         return get(modelInstance.atom);
       };
-      const data = getValue<T>(getModelMap, currModelName, ids);
+      const data = getValueInModelMap<T>(getModelMap, currModelName, ids);
       if (data === null) {
         return null;
       }
@@ -124,7 +124,7 @@ export default function initModel(): {
     }
 
     function getShallowValueInSelector(get: GetRecoilValue, ids: IModelId[] | IModelId) {
-      return getValue((modelName: string) => {
+      return getValueInModelMap((modelName: string) => {
         const modelInstance = modelManager.getModel<T>(modelName);
         return get(modelInstance.atom);
       }, currModelName, ids);
@@ -192,7 +192,7 @@ export default function initModel(): {
      * @param parse 处理单个数据的函数
      * @returns
      */
-    function getValue<D extends { [key: string]: AnyData }>(
+    function getValueInModelMap<D extends { [key: string]: AnyData }>(
       getModelMap: (modelName: string) => IModelDataMap<D>,
       modelName: string,
       ids: IModelId[] | IModelId,
@@ -282,7 +282,7 @@ export default function initModel(): {
       _.forOwn(fields, (subModelName, field) => {
         const subModelIds = newDataItem[field];
         if (subModelIds !== undefined) {
-          const subModelData = getValue<T>(getModelMap, subModelName, subModelIds,
+          const subModelData = getValueInModelMap<T>(getModelMap, subModelName, subModelIds,
             (singleData: T) => getDataItemRecursively(getModelMap, subModelName, singleData));
           (newDataItem as { [key: string]: AnyData })[field] = subModelData;
         }
