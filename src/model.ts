@@ -1,12 +1,10 @@
 import {
-  atom, selector, selectorFamily, useRecoilState, useResetRecoilState,
-  GetRecoilValue,
-  AtomOptions,
+  atom, selector, useRecoilState, useResetRecoilState, AtomOptions, useRecoilValue, GetRecoilValue,
 } from 'recoil';
-import { AnyData, IModelDataMap, IModelStaticMethods, IModelId, IModelMethods, IModelOpt, IRecoilSetOpt, } from './types';
+import { AnyData, IModelDataMap, IModelStaticMethods, IModelId, IModelOpt, IRecoilSetOpt, } from './types';
 import ModelManager from './modelManager';
 import _ from 'lodash';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 
 export default function initModel(): {
   createModel: <T extends { [key: string]: AnyData }>(opt: IModelOpt) => IModelMethods<T>;
@@ -45,30 +43,7 @@ export default function initModel(): {
     };
     const atomItem = atom<IModelDataMap<T>>(atomOpt);
 
-    const getDataSelector = selectorFamily<T | T[] | null, IModelId[] | IModelId>({
-      key: getSelectorName(currModelName, 'getData'),
-      get: (ids) => ({ get, }: { get: GetRecoilValue }) => {
-        const data = getValue<T>(get, currModelName, ids);
-        if (data === null) {
-          return null;
-        }
-        if (_.isArray(ids)) {
-          // 批量读取数据
-          return _.map(data as T[], (dataItem) => getDataItemRecursively(get, currModelName, dataItem));
-        }
-        // 读取单个数据
-        return getDataItemRecursively(get, currModelName, data as T);
-      },
-    });
-
-    const getShallowDataSelector = selectorFamily<T | T[] | null, IModelId[] | IModelId>({
-      key: getSelectorName(currModelName, 'getShallowData'),
-      get: (ids) => ({ get }: { get: GetRecoilValue }) => {
-        return getValue<T>(get, currModelName, ids);
-      },
-    });
-
-    const updaterSelectorItem = selector<{ [key: string]: IModelDataMap<AnyData> }>({
+    const getModelDataWithDepsSelector = selector<{ [key: string]: IModelDataMap<AnyData> }>({
       key: getSelectorName(currModelName, 'set'),
       get: ({ get, }) => {
         // 组装出更新当前model需要的所有已在store中的数据，包含当前model的数据，及所有子孙model的数据
@@ -95,12 +70,75 @@ export default function initModel(): {
       atom: atomItem,
     });
 
+    /**
+     * 获取id对应的完整数据，如果数据中的字段包含依赖的model，则字段会返回完整地依赖数据
+     * @example Book.useGetValue(1) => { id: 1, user: { ... }, comments: [{ ... }, { ... }] }
+     * @param ids id列表，或单个id
+     * @returns
+     */
+    function useGetValue(ids: IModelId[] | IModelId) {
+      const relatedModelMap = useRecoilValue(getModelDataWithDepsSelector);
+      return useMemo(() => {
+        const getModelMap = (modelName: string) => relatedModelMap[modelName];
+        const data = getValue<T>(getModelMap, currModelName, ids);
+        if (data === null) {
+          return null;
+        }
+        if (_.isArray(ids)) {
+          // 批量读取数据
+          return _.map(data as T[], (dataItem) => getDataItemRecursively(getModelMap, currModelName, dataItem));
+        }
+        // 读取单个数据
+        return getDataItemRecursively(getModelMap, currModelName, data as T);
+      }, [relatedModelMap, ids]);
+    }
+
+    /**
+     * 获取id对应的浅层数据，如果数据中的字段包含依赖的model，则字段只包含依赖model对应的数据的id
+     * @example Book.useGetShallowValue(1) => { id: 1, users: '1', comments: ['c1', 'c2] }
+     * @param ids id列表，或单个id
+     * @returns
+     */
+    function useGetShallowValue(ids: IModelId[] | IModelId) {
+      const relatedModelMap = useRecoilValue(getModelDataWithDepsSelector);
+      return useMemo(() => {
+        return getValue((modelName: string) => relatedModelMap[modelName], currModelName, ids);
+      }, [relatedModelMap, ids]);
+    }
+
+    function getValueInSelector(get: GetRecoilValue, ids: IModelId[] | IModelId) {
+      const getModelMap = (modelName: string) => {
+        const modelInstance = modelManager.getModel<T>(modelName);
+        return get(modelInstance.atom);
+      };
+      const data = getValue<T>(getModelMap, currModelName, ids);
+      if (data === null) {
+        return null;
+      }
+      if (_.isArray(ids)) {
+        // 批量读取数据
+        return _.map(data as T[], (dataItem) => getDataItemRecursively(getModelMap, currModelName, dataItem));
+      }
+      // 读取单个数据
+      return getDataItemRecursively(getModelMap, currModelName, data as T);
+    }
+
+    function getShallowValueInSelector(get: GetRecoilValue, ids: IModelId[] | IModelId) {
+      return getValue((modelName: string) => {
+        const modelInstance = modelManager.getModel<T>(modelName);
+        return get(modelInstance.atom);
+      }, currModelName, ids);
+    }
+
     const mutableStoreMap: { [key: string]: IModelDataMap<T> } = {};
+
     return {
-      getShallowDataSelector,
-      getDataSelector,
+      getValue: getValueInSelector,
+      getShallowValue: getShallowValueInSelector,
+      useGetValue,
+      useGetShallowValue,
       useChangeData: () => {
-        const [storeMap, setStoreMap] = useRecoilState(updaterSelectorItem);
+        const [storeMap, setStoreMap] = useRecoilState(getModelDataWithDepsSelector);
 
         // 防止 useChangeData 返回的方法生成新的方法对象，导致用了 useChangeData 返回方法的 hook 的依赖项多次变更
         clearAllProperties(mutableStoreMap);
@@ -135,7 +173,7 @@ export default function initModel(): {
           set,
           remove,
         };
-      }
+      },
     };
 
     function clearAllProperties<D extends Object>(obj: D): D {
@@ -147,15 +185,15 @@ export default function initModel(): {
     }
 
     /**
-     * 从model库中，根据id或id数组查询数据
-     * @param get 获取atom数据的方法
-     * @param dataMap model数据库
+     * 从指定的model库中，根据id或id数组查询数据
+     * @param getModelMap 获取model内所有数据的方法
+     * @param modelName model名
      * @param ids 查询的id或id列表
      * @param parse 处理单个数据的函数
      * @returns
      */
     function getValue<D extends { [key: string]: AnyData }>(
-      get: GetRecoilValue,
+      getModelMap: (modelName: string) => IModelDataMap<D>,
       modelName: string,
       ids: IModelId[] | IModelId,
       parse?: (dataItem: D) => D | null
@@ -164,14 +202,14 @@ export default function initModel(): {
         return null;
       }
       const modelInstance = modelManager.getModel<D>(modelName);
-      const dataMap = get(modelInstance.atom);
+      const dataMap = getModelMap(modelName);
       const { fields } = modelInstance.option;
 
       const parseDataItem = parse || ((dataItem) => dataItem);
       if (_.isArray(ids)) {
         // 批量读取数据
         const dataList = _.map(ids, (id) => {
-          const singleData = getDataItemWithValidFieldValue<D>(get, dataMap[id], fields);
+          const singleData = getDataItemWithValidFieldValue<D>(getModelMap, dataMap[id], fields);
           // 如果数据被删除了，dataMap[id]会不存在
           return singleData ? parseDataItem(singleData) : null;
         });
@@ -180,7 +218,7 @@ export default function initModel(): {
       }
       // 读取单个数据
       const id = ids as IModelId;
-      const singleData = getDataItemWithValidFieldValue<D>(get, dataMap[id], fields);
+      const singleData = getDataItemWithValidFieldValue<D>(getModelMap, dataMap[id], fields);
       // 如果数据被删除了，dataMap[id]会不存在
       if (!singleData) {
         return null;
@@ -192,13 +230,15 @@ export default function initModel(): {
      * 获取过滤掉不存在的子 model id 后的单条数据
      * @example 过滤不存在的数组值。假设c1对应的数据已被删除 getDataItemWithValidFieldValue({ bookId: 1, comments: ['c1', 'c2'] }) -> { bookId: 1, comments: ['c2'] }
      * @example 过滤掉不存在的单条值。假设user1对应的数据已被删除 getDataItemWithValidFieldValue({ bookId: 1, user: 'user1' }) -> { bookId: 1, user: null }
-     * @param get 获取atom数据的方法
+     * @param getModelMap 获取model内所有数据的方法
      * @param dataItem 单条数据
      * @param fields model配置中的fields定义，表示数据字段和子model的关联关系
      * @returns 过滤掉不存在的子 model id 后的单条数据
      */
     function getDataItemWithValidFieldValue<D extends { [key: string]: AnyData }>(
-      get: GetRecoilValue, dataItem: D, fields: { [key: string]: string } = {}
+      getModelMap: (modelName: string) => IModelDataMap<D>,
+      dataItem: D,
+      fields: { [key: string]: string } = {}
     ): D {
       if (!dataItem) {
         return dataItem;
@@ -209,7 +249,7 @@ export default function initModel(): {
         const subModelName = fields[key];
         if (subModelName) {
           // 对应的是子model的id数据
-          const subModelMap = get(modelManager.getModel(subModelName).atom);
+          const subModelMap = getModelMap(subModelName);
           if (_.isArray(val)) {
             // 处理数组形式，过滤掉不存在的id
             (newDataItem as { [k: string]: AnyData })[key] = _.filter(val, (singleId) => !!subModelMap[singleId]);
@@ -225,11 +265,16 @@ export default function initModel(): {
     /**
      * 递归地将单个数据项中的经过处理的子model数据，填充为完整的数据项
      * @example {books:[1,2]} -> {books: [{id:1, name:'book1'}, {id:2, name:'book2'}]}
-     * @param get recoil的get方法
+     * @param getModelMap 获取model内所有数据的方法
+     * @param modelName model的名称
      * @param dataItem 单个数据项
      * @returns object
      */
-    function getDataItemRecursively(get: GetRecoilValue, modelName: string, dataItem: T) {
+    function getDataItemRecursively(
+      getModelMap: (modelName: string) => IModelDataMap<T>,
+      modelName: string,
+      dataItem: T
+    ) {
       const newDataItem = _.cloneDeep<T>(dataItem);
       const modelInstance = modelManager.getModel(modelName);
       const fields = modelInstance.option.fields;
@@ -237,8 +282,8 @@ export default function initModel(): {
       _.forOwn(fields, (subModelName, field) => {
         const subModelIds = newDataItem[field];
         if (subModelIds !== undefined) {
-          const subModelData = getValue<T>(get, subModelName, subModelIds,
-            (singleData: T) => getDataItemRecursively(get, subModelName, singleData));
+          const subModelData = getValue<T>(getModelMap, subModelName, subModelIds,
+            (singleData: T) => getDataItemRecursively(getModelMap, subModelName, singleData));
           (newDataItem as { [key: string]: AnyData })[field] = subModelData;
         }
       });
@@ -345,7 +390,7 @@ function changeDataItemInStoreMap<D>(modelName: string, storeMap: { [key: string
 }
 
 /**
- * 是否像是处理过的model数据，由于model数据都是对象，因此只要不是对象就可以认为是处理过成为id或id列表的
+ * 是否像是处理过的model数据，由于model数据都是对象，因此只要不是对象就可以认为是处理过后，成为id或id列表了的数据
  * @param list
  * @returns
  */
@@ -362,4 +407,20 @@ function getAtomName(name: string) {
 
 function getSelectorName(name: string, extra?: string) {
   return `NORMALIZE_ORM_MODEL_SELECTOR_${name}${extra ? `_${extra}` : ''}`;
+}
+
+type GetDataValue<T> = (ids: IModelId[] | IModelId) => T | T[] | null;
+type GetValueInSelector<T> = (get: GetRecoilValue, ids: IModelId[] | IModelId) => T | T[] | null;
+type SetData<T> = (id: IModelId | Partial<T> | Partial<T>[], data?: Partial<T>) => IModelId | IModelId[] | null;
+type RemoveData = (id: IModelId | IModelId[]) => void;
+
+export interface IModelMethods<T> {
+  useGetValue: GetDataValue<T>;
+  useGetShallowValue: GetDataValue<T>;
+  useChangeData: () => {
+    set: SetData<T>;
+    remove: RemoveData;
+  };
+  getValue: GetValueInSelector<T>;
+  getShallowValue: GetValueInSelector<T>;
 }

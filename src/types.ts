@@ -1,4 +1,4 @@
-import { SetRecoilState, ResetRecoilState, RecoilState, GetRecoilValue, RecoilValueReadOnly } from 'recoil';
+import { SetRecoilState, ResetRecoilState, RecoilState, GetRecoilValue, } from 'recoil';
 
 export interface IModelOpt {
   // Model名称，如 "User"
@@ -24,15 +24,6 @@ export interface IModelInstance<T> {
 // 单个model表的结构，id为键，存储在atom中
 export interface IModelDataMap<T> {
   [key: string]: T;
-}
-
-export interface IModelMethods<T> {
-  getShallowDataSelector: (ids: IModelId[] | IModelId) => RecoilValueReadOnly<T | T[] | null>;
-  getDataSelector: (ids: IModelId[] | IModelId) => RecoilValueReadOnly<T | T[] | null>;
-  useChangeData: () => {
-    set: (id: IModelId | Partial<T> | Partial<T>[], data?: Partial<T>) => IModelId | IModelId[] | null;
-    remove: (id: IModelId | IModelId[]) => void;
-  };
 }
 
 export interface IRecoilSetOpt {
