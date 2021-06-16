@@ -2,9 +2,9 @@
 
 # 介绍
 
-基于recoil实现的管理数据实体的工具，能够保证整个应用中数据的统一性。
+基于recoil实现的管理数据实体的工具，能够保证前端应用中数据的统一性。
 
-能够保证同一个数据实例，不论在页面中展示多少处，在内存中只存在同一份数据，对它产生的变更能作用到所有引用它的地方。借鉴了业务数据库的思想，即数据实例只存在一份，并按id存储。
+能够保证同一个数据实例，不论在页面中展示多少处，在内存中只存在同一份数据，对它产生的变更能作用到所有引用它的地方。借鉴了服务端应用数据库的思想，即数据实例只存在一份，并按id存储。
 
 # 案例
 
@@ -219,43 +219,69 @@ export const Tag = {
 const { createModel, } = initModel();
 
 // 初始化各模型表
-const bookStore = createModel<IBookItem>(Book);
+// createModel接受2个泛型，第一个是完整数据类型如IBookItem，第二个是处理后的数据类型如INormalizedBookItem
+// INormalizedBookItem 中关联其他模型的字段都已被处理成id或id数组。第二个泛型可选，如果像IUserItem这样字段不再关联其他模型的情况，则不必传入第二个泛型
+const bookStore = createModel<IBookItem, INormalizedBookItem>(Book);
 const userStore = createModel<IUserItem>(User);
-const commentStore = createModel<ICommentItem>(Comment);
+const commentStore = createModel<ICommentItem, INormalizedCommentItem>(Comment);
 const tagStore = createModel<ITagItem>(Tag);
 
 interface IBookItem {
-    id: number;
-    name: string;
-    author: IUserItem;
-    comments: ICommentItem[];
+  id: number;
+  name: string;
+  author: IUserItem;
+  comments: ICommentItem[];
+}
+
+interface INormalizedBookItem {
+  id: number;
+  name: string;
+  author: string;
+  comments: string[];
 }
 
 interface IUserItem {
-    userId: string;
-    name: string;
-    age: number;
+  userId: string;
+  name: string;
+  age: number;
 }
 
 interface ICommentItem {
-    cid: string;
-    text: string;
-    user: IUserItem;
-    tags: ITagItem[];
+  cid: string;
+  text: string;
+  user: IUserItem;
+  tags: ITagItem[];
+}
+
+interface INormalizedCommentItem {
+  cid: string;
+  text: string;
+  user: string[];
 }
 
 interface ITagItem {
-    tid: string;
-    name: string;
+  tid: string;
+  name: string;
 }
 ```
 
 ## 插入数据
 
 ```
-// 在hook函数中
+// 在自定义hook中使用
 function useCustomHook() {
-    const { set } = bookStore.useChangeData();
+    // 可以直接获取book的set方法
+    const set = bookStore.useSetState();
+
+    // 也可以和shallow数据一起获取set方法，类似于react的useState
+    const [shallowData, set] = bookStore.useShallowState();
+    // shallow顾名思义，是浅层的意思。名字有shallow的方法，获取到的数据中，与其他模型关联的字段的值都会被替换为对应的id
+    // 如 Book 模型中单条数据的 shallow 数据：{ id: 1, name: 'book1', author: '1', comments: ['c1', 'c2'], summary: 'hello world', }
+    // 其中关联 User 和 Comment 模型的字段 author 和 comments，值已被替换为对应的id
+
+    // 也可以和完整数据一起获取set方法，类似于react的useState
+    const [data, set] = bookStore.useState();
+
     useEffect(() => {
         const ids = set(booksData);
     }, []);
@@ -271,7 +297,7 @@ set(list: Partial<T>[]): IModelId[]; // 数据中必须包含id字段
 
 set(item: Partial<T>): IModelId; // 数据中必须包含id字段
 
-set(id: string | number, item: Partial<T>): IModelId; // 由于指定了id，因此数据中可以不包含id字段
+set(id: IModelId, item: Partial<T>): IModelId; // 由于指定了id，因此数据中可以不包含id字段
 
 type IModelId = string | number;
 ```
@@ -281,15 +307,26 @@ type IModelId = string | number;
 ```
 // 在hook函数中
 function useCustomHook() {
+    const idList = useMemo(() => [1, 2], []);
+
+    // 入参 idList 需要是个immutable且多次渲染中保持不变的数据，如atom里取出的值。这样可以命中useGetValue中的缓存，保证books在多次渲染中返回同一个对象。方便在下游的useCallback中使用books数据。
+    // 下面的 useShallowValue，useState，useShallowState 也是如此
+
     // 批量获取完整数据，books的数据和初始化章节中booksData数据一样
-    const books = useRecoilValue(bookStore.getDataSelector([1, 2]));
+    const books = bookStore.useGetValue(idList);
+
     // 批量获取本模型下数据，shallowBooks获取到的是Book模型下只包含其他模型id的数据
     // [{ id: 1, name: 'book1', author: '1', comments: ['c1', 'c2'], summary: 'hello world', }, { id: 2, name: 'book2', author: '2', comments: ['c3', 'c4'], summary: 'new start', }]
-    const shallowBooks = useRecoilValue(bookStore.getShallowDataSelector([1, 2]));
+    const shallowBooks = bookStore.useShallowValue(idList);
+
+    const singleId = useMemo(() => 1, []);
     // 获取单条完整数据
-    const singleBook = useRecoilValue(bookStore.getDataSelector(1));
+    const singleBook = bookStore.useGetValue(singleId);
     // 获取单条本模型下的数据
-    const singleShallowBook = useRecoilValue(bookStore.getDataSelector(1));
+    const singleShallowBook = bookStore.useGetValue(singleId);
+
+    // useState 返回的内容等同于 [bookStore.useGetValue(...), bookStore.useSetState()], useSetState将在下文介绍。
+    const [bookValue, setBookState] = bookStore.useState(singleIdOrIdList);
 }
 ```
 
@@ -312,7 +349,7 @@ function useCustomHook() {
 ```
 // 在hook函数中
 function useCustomHook() {
-    const { remove, } = bookStore.useChangeData();
+    const remove = bookStore.useRemoveState();
     useEffect(() => {
         // 删除id值为1和2的数据
         remove([1, 2]);
