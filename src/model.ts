@@ -4,7 +4,7 @@ import {
 import { AnyData, IModelDataMap, IModelStaticMethods, IModelId, IModelOpt, IRecoilSetOpt, } from './types';
 import ModelManager from './modelManager';
 import _ from 'lodash';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 
 export default function initModel(): {
   createModel: <DataItem extends { [key: string]: AnyData }, NormalizedDataItem extends { [key: string]: AnyData } = DataItem>(
@@ -141,59 +141,74 @@ export default function initModel(): {
       }, currModelName, ids) as (NormalizedDataItem[] | NormalizedDataItem | null);
     }
 
-    const mutableStoreMap: { [key: string]: IModelDataMap<NormalizedDataItem> } = {};
+    function useSetState() {
+      const [relatedModelMap, setRelatedModelMap] = useRecoilState(getModelDataWithAllDepsSelector);
+      // modelMap会因依赖的model数据的改变，频繁生成新的方法对象，导致调用方的useCallback不稳定，因此在这里用useRef去除依赖
+      const mutableModelMap = useRef<{ [key: string]: IModelDataMap<NormalizedDataItem> }>({});
+      mutableModelMap.current = relatedModelMap;
+
+      return useCallback((id, data) => {
+        const newStoreMap = _.cloneDeep(mutableModelMap.current);
+        const ids = normalize<NormalizedDataItem | DataItem>(currModelName, newStoreMap, id, data);
+        if (!_.isEqual(newStoreMap, mutableModelMap.current)) {
+          setRelatedModelMap(newStoreMap);
+        }
+        setRelatedModelMap(newStoreMap);
+        return ids;
+      }, [setRelatedModelMap]);
+    }
+
+    function useState(ids: IModelId | IModelId[]): [
+      DataItem[] | DataItem | null,
+      (id: IModelId | Partial<DataItem> | Partial<DataItem>[], data?: Partial<DataItem>) => IModelId | IModelId[] | null
+    ] {
+      const data = useGetValue(ids);
+      const setState = useSetState();
+      return [data, setState];
+    }
+
+    function useShallowState(ids: IModelId | IModelId[]): [
+      NormalizedDataItem[] | NormalizedDataItem | null,
+      (id: IModelId | Partial<DataItem> | Partial<DataItem>[], data?: Partial<DataItem>) => IModelId | IModelId[] | null
+    ] {
+      const shallowData = useGetShallowValue(ids);
+      const setState = useSetState();
+      return [shallowData, setState];
+    }
+
+    function useRemoveState() {
+      const [relatedModelMap, setRelatedModelMap] = useRecoilState(getModelDataWithAllDepsSelector);
+      // modelMap会因依赖的model数据的改变，频繁生成新的方法对象，导致调用方的useCallback不稳定，因此在这里用useRef去除依赖
+      const mutableModelMap = useRef<{ [key: string]: IModelDataMap<NormalizedDataItem> }>({});
+      mutableModelMap.current = relatedModelMap;
+
+      return useCallback((id) => {
+        if (id === undefined) {
+          throw new Error('remove id is undefined');
+        }
+        const newStoreMap = _.cloneDeep(mutableModelMap.current);
+        const modelData = newStoreMap[currModelName];
+        // id值可能是字符串或数字，而存在表中的key是字符串，因此要将id值转成字符串进行比较
+        const targetIds = _.map(_.isArray(id) ? id : [id], (idVal) => idVal.toString());
+        _.forOwn(modelData, (dataItem, idVal) => {
+          if (targetIds.indexOf(idVal) !== -1) {
+            Reflect.deleteProperty(modelData, idVal);
+          }
+        });
+        setRelatedModelMap(newStoreMap);
+      }, [setRelatedModelMap]);
+    }
 
     return {
       getValue: getValueInSelector,
       getShallowValue: getShallowValueInSelector,
       useGetValue,
       useGetShallowValue,
-      useChangeData: () => {
-        const [storeMap, setStoreMap] = useRecoilState(getModelDataWithAllDepsSelector);
-
-        // 防止 useChangeData 返回的方法生成新的方法对象，导致用了 useChangeData 返回方法的 hook 的依赖项多次变更
-        clearAllProperties(mutableStoreMap);
-        Object.assign(mutableStoreMap, storeMap);
-
-        const set = useCallback((id, data) => {
-          const newStoreMap = _.cloneDeep(mutableStoreMap);
-          const ids = normalize<DataItem | NormalizedDataItem>(currModelName, newStoreMap, id, data);
-          if (!_.isEqual(newStoreMap, mutableStoreMap)) {
-            setStoreMap(newStoreMap);
-          }
-          return ids;
-        }, [setStoreMap]);
-
-        const remove = useCallback((id) => {
-          if (id === undefined) {
-            throw new Error('remove id is undefined');
-          }
-          const newStoreMap = _.cloneDeep(mutableStoreMap);
-          const modelData = newStoreMap[currModelName];
-          // id值可能是字符串或数字，而存在表中的key是字符串，因此要将id值转成字符串进行比较
-          const targetIds = _.map(_.isArray(id) ? id : [id], (idVal) => idVal.toString());
-          _.forOwn(modelData, (dataItem, idVal) => {
-            if (targetIds.indexOf(idVal) !== -1) {
-              Reflect.deleteProperty(modelData, idVal);
-            }
-          });
-          setStoreMap(newStoreMap);
-        }, [setStoreMap]);
-
-        return {
-          set,
-          remove,
-        };
-      },
+      useState,
+      useShallowState,
+      useSetState,
+      useRemoveState,
     };
-
-    function clearAllProperties<D extends Object>(obj: D): D {
-      const keys = Object.keys(obj);
-      keys.forEach((key) => {
-        Reflect.deleteProperty(obj, key);
-      });
-      return obj;
-    }
 
     /**
      * 从指定的model库中，根据id或id数组查询数据
@@ -420,18 +435,17 @@ function getSelectorName(name: string, extra?: string) {
   return `NORMALIZE_ORM_MODEL_SELECTOR_${name}${extra ? `_${extra}` : ''}`;
 }
 
-type GetDataValue<T> = (ids: IModelId[] | IModelId) => T | T[] | null;
+type GetParams = IModelId[] | IModelId;
+type ReturnedDataValue<T> = T | T[] | null;
 type GetValueInSelector<T> = (get: GetRecoilValue, ids: IModelId[] | IModelId) => T | T[] | null;
 type SetData<T> = (id: IModelId | Partial<T> | Partial<T>[], data?: Partial<T>) => IModelId | IModelId[] | null;
-type RemoveData = (id: IModelId | IModelId[]) => void;
-
 export interface IModelMethods<DataItem, NormalizedDataItem> {
-  useGetValue: GetDataValue<DataItem>;
-  useGetShallowValue: GetDataValue<NormalizedDataItem>;
-  useChangeData: () => {
-    set: SetData<DataItem>;
-    remove: RemoveData;
-  };
+  useGetValue: (ids: GetParams) => ReturnedDataValue<DataItem>;
+  useGetShallowValue: (ids: GetParams) => ReturnedDataValue<NormalizedDataItem>;
+  useState: (ids: GetParams) => [ReturnedDataValue<DataItem>, SetData<DataItem>];
+  useShallowState: (ids: GetParams) => [ReturnedDataValue<NormalizedDataItem>, SetData<DataItem>];
+  useRemoveState: () => (id: GetParams) => void;
+  useSetState: () => SetData<DataItem>;
   getValue: GetValueInSelector<DataItem>;
   getShallowValue: GetValueInSelector<NormalizedDataItem>;
 }

@@ -32,8 +32,7 @@ describe('model', () => {
 
   test('useShallowData for list', () => {
     const { result, } = renderHook(() => {
-      const data = bookStore.useGetShallowValue([1, 2]);
-      const { set } = bookStore.useChangeData();
+      const [data, set] = bookStore.useShallowState([1, 2]);
       return {
         setData: set,
         data,
@@ -59,8 +58,7 @@ describe('model', () => {
 
   test('useShallowData for single', () => {
     const { result, } = renderHook(() => {
-      const data = bookStore.useGetShallowValue(1);
-      const { set } = bookStore.useChangeData();
+      const [data, set] = bookStore.useShallowState(1);
       return {
         setData: set,
         data,
@@ -80,8 +78,7 @@ describe('model', () => {
 
   test('useData for list', () => {
     const { result, } = renderHook(() => {
-      const data = bookStore.useGetValue([1, 2]);
-      const { set } = bookStore.useChangeData();
+      const [data, set] = bookStore.useState([1, 2]);
       return {
         setData: set,
         data,
@@ -95,8 +92,7 @@ describe('model', () => {
 
   test('useData for single', () => {
     const { result, } = renderHook(() => {
-      const data = bookStore.useGetValue(2);
-      const { set } = bookStore.useChangeData();
+      const [data, set] = bookStore.useState(2);
       return {
         setData: set,
         data,
@@ -110,7 +106,7 @@ describe('model', () => {
 
   test('set list return ids', () => {
     const { result, } = renderHook(() => {
-      const { set, } = userStore.useChangeData();
+      const set = userStore.useSetState();
       return {
         set,
       };
@@ -132,7 +128,7 @@ describe('model', () => {
 
   test('set single return id', () => {
     const { result, } = renderHook(() => {
-      const { set, } = userStore.useChangeData();
+      const set = userStore.useSetState();
       return {
         set,
       };
@@ -151,7 +147,7 @@ describe('model', () => {
   test('check relative data is in store after set', () => {
     const { result, } = renderHook(() => {
       const tags = tagStore.useGetValue(['t01', 't02', 't03', 't04', 't05']);
-      const { set, } = bookStore.useChangeData();
+      const set = bookStore.useSetState();
       return {
         set,
         tags,
@@ -189,8 +185,7 @@ describe('model', () => {
   test('cant get inexistent ids', () => {
     const { result, } = renderHook(() => {
       // id 3不存在，会被自动过滤掉，只会返回包含已存在数据的列表
-      const data = bookStore.useGetValue([1, 3]);
-      const { set } = bookStore.useChangeData();
+      const [data, set] = bookStore.useState([1, 3]);
       return {
         setData: set,
         data,
@@ -204,8 +199,8 @@ describe('model', () => {
 
   test('remove existed id', () => {
     const { result, } = renderHook(() => {
-      const data = bookStore.useGetValue([1, 2]);
-      const { remove, set, } = bookStore.useChangeData();
+      const [data, set] = bookStore.useState([1, 2]);
+      const remove = bookStore.useRemoveState();
       return {
         remove,
         set,
@@ -223,8 +218,8 @@ describe('model', () => {
 
   test('remove existed ids', () => {
     const { result, } = renderHook(() => {
-      const data = bookStore.useGetValue([1, 2]);
-      const { remove, set, } = bookStore.useChangeData();
+      const [data, set] = bookStore.useState([1, 2]);
+      const remove = bookStore.useRemoveState();
       return {
         set,
         remove,
@@ -242,8 +237,9 @@ describe('model', () => {
 
   test('remove inexistent id', () => {
     const { result, } = renderHook(() => {
-      const data = bookStore.useGetValue([1, 2]);
-      const { remove, set, } = bookStore.useChangeData();
+      const [data, set] = bookStore.useState([1, 2]);
+      const remove = bookStore.useRemoveState();
+
       return {
         set,
         remove,
@@ -264,9 +260,9 @@ describe('model', () => {
   test('cant find remove ids in shallowData', () => {
     const { result, } = renderHook(() => {
       const data = bookStore.useGetValue([1, 2]);
-      const shallowData = bookStore.useGetShallowValue(1) as INormalizedBookItem;
-      const { remove: removeBook, set, } = bookStore.useChangeData();
-      const { remove: removeComment, } = commentStore.useChangeData();
+      const [shallowData, set] = bookStore.useShallowState(1);
+      const removeBook = bookStore.useRemoveState();
+      const removeComment = commentStore.useRemoveState();
       return {
         set,
         removeBook,
@@ -281,14 +277,14 @@ describe('model', () => {
     act(() => {
       result.current.removeComment('c1');
     });
-    expect(result.current.shallowData.comments).toEqual(['c2']);
+    expect((result.current.shallowData as INormalizedBookItem).comments).toEqual(['c2']);
   });
 
   test('cant find removed ids in deep data', () => {
     const { result, } = renderHook(() => {
-      const data = bookStore.useGetValue([1, 2]) as IBookItem[];
-      const { remove: removeComment, } = commentStore.useChangeData();
-      const { remove: removeBook, set, } = bookStore.useChangeData();
+      const [data, set] = bookStore.useState([1, 2]);
+      const removeComment = commentStore.useRemoveState();
+      const removeBook = bookStore.useRemoveState();
       return {
         set,
         removeBook,
@@ -302,17 +298,16 @@ describe('model', () => {
     act(() => {
       result.current.removeComment(['c1']);
     });
-    expect(result.current.data[0].comments.length).toEqual(1);
-    expect(result.current.data[0].comments[0].cid).toEqual('c2');
+    expect((result.current.data as IBookItem[])[0].comments.length).toEqual(1);
+    expect((result.current.data as IBookItem[])[0].comments[0].cid).toEqual('c2');
   });
 
   // 如果删除了一条数据，会影响以单条数据引用它的数据
   // 比如Book中的author对应的数据被删了，在查询Book时，author字段的值会变为null
   test('still can find removed id in shallow data', () => {
     const { result, } = renderHook(() => {
-      const data = bookStore.useGetShallowValue([1, 2]) as INormalizedBookItem[];
-      const { remove: removeUser } = userStore.useChangeData();
-      const { set, } = bookStore.useChangeData();
+      const [data, set] = bookStore.useShallowState([1, 2]);
+      const removeUser = userStore.useRemoveState();
       return {
         set,
         removeUser,
@@ -325,7 +320,7 @@ describe('model', () => {
     act(() => {
       result.current.removeUser('1');
     });
-    expect(result.current.data[0].author).toEqual(null);
+    expect((result.current.data as INormalizedBookItem[])[0].author).toEqual(null);
   });
 
   // useGetShallowValue计算出来的值有缓存，防止在依赖项不变时生成新的值对象
@@ -333,8 +328,8 @@ describe('model', () => {
     const { result, } = renderHook(() => {
       const ids = useMemo(() => ['t01', 't02'], []);
       const shallowTags = tagStore.useGetShallowValue(ids) as ITagItem[];
-      const { set: setBook, } = bookStore.useChangeData();
-      const { set: setUser, } = userStore.useChangeData();
+      const setBook = bookStore.useSetState();
+      const setUser = userStore.useSetState();
       return { shallowTags, setBook, setUser };
     }, { wrapper, });
     act(() => {
@@ -364,8 +359,8 @@ describe('model', () => {
     const { result, } = renderHook(() => {
       const ids = useMemo(() => ['t01', 't02'], []);
       const tags = tagStore.useGetValue(ids) as ITagItem[];
-      const { set: setBook, } = bookStore.useChangeData();
-      const { set: setUser, } = userStore.useChangeData();
+      const setBook = bookStore.useSetState();
+      const setUser = userStore.useSetState();
       return { tags, setBook, setUser };
     }, { wrapper, });
     act(() => {
@@ -390,6 +385,37 @@ describe('model', () => {
     expect(lastData === currentData).toEqual(true);
   });
 
+  // useState计算出来的值有缓存，防止在依赖项不变时生成新的值对象
+  test('useState has memorized', () => {
+    const { result, } = renderHook(() => {
+      const ids = useMemo(() => ['t01', 't02'], []);
+      const [tags] = tagStore.useState(ids);
+      const setBook = bookStore.useSetState();
+      const setUser = userStore.useSetState();
+      return { tags, setBook, setUser };
+    }, { wrapper, });
+    act(() => {
+      result.current.setBook(booksData);
+    });
+    let lastData: ITagItem[] = [];
+    let currentData: ITagItem[] = [];
+    act(() => {
+      lastData = result.current.tags as ITagItem[];
+    });
+    // 由于User和Tag不相关，因此改变User不会改变Tag
+    act(() => {
+      result.current.setUser(3, {
+        userId: '6',
+        name: 'user6',
+        age: 26
+      });
+    });
+    act(() => {
+      currentData = result.current.tags as ITagItem[];
+    });
+    expect(lastData === currentData).toEqual(true);
+  });
+
   test('getValue in selector', () => {
     const bookDataSelector = selector({
       key: 'getValueTestSelector',
@@ -399,7 +425,7 @@ describe('model', () => {
     });
     const { result, } = renderHook(() => {
       const data = useRecoilValue(bookDataSelector);
-      const { set, } = bookStore.useChangeData();
+      const set = bookStore.useSetState();
       return {
         set,
         data,
@@ -420,7 +446,7 @@ describe('model', () => {
     });
     const { result, } = renderHook(() => {
       const data = useRecoilValue(bookDataSelector);
-      const { set, } = bookStore.useChangeData();
+      const set = bookStore.useSetState();
       return {
         set,
         data,
@@ -449,8 +475,8 @@ describe('model', () => {
     const { result, } = renderHook(() => {
       const ids = useMemo(() => [1, 2], []);
       const shallowBooks = bookStore.useGetShallowValue(ids) as INormalizedBookItem[];
-      const { set: setBook, } = bookStore.useChangeData();
-      const { set: setTag, } = tagStore.useChangeData();
+      const setBook = bookStore.useSetState();
+      const setTag = tagStore.useSetState();
       return { shallowBooks, setBook, setTag };
     }, { wrapper, });
     act(() => {
@@ -478,8 +504,8 @@ describe('model', () => {
     const { result, } = renderHook(() => {
       const ids = useMemo(() => [1, 2], []);
       const shallowBooks = bookStore.useGetShallowValue(ids) as INormalizedBookItem[];
-      const { set: setBook, } = bookStore.useChangeData();
-      const { set: setUser, } = userStore.useChangeData();
+      const setBook = bookStore.useSetState();
+      const setUser = userStore.useSetState();
       return { shallowBooks, setBook, setUser };
     }, { wrapper, });
     act(() => {
