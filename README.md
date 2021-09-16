@@ -309,7 +309,7 @@ type IModelId = string | number;
 function useCustomHook() {
     const idList = useMemo(() => [1, 2], []);
 
-    // 入参 idList 需要是个immutable且多次渲染中保持不变的数据，如atom里取出的值。这样可以命中useGetValue中的缓存，保证books在多次渲染中返回同一个对象。方便在下游的useCallback中使用books数据。
+    // 入参 idList 需要是个immutable且多次渲染中保持不变的数据，如atom里取出的值。这样可以命中useGetValue中的缓存，保证books在多次渲染中返回同一个对象。方便在下游的useCallback中使用books数据
     // 下面的 useShallowValue，useState，useShallowState 也是如此
 
     // 批量获取完整数据，books的数据和初始化章节中booksData数据一样
@@ -317,7 +317,7 @@ function useCustomHook() {
 
     // 批量获取本模型下数据，shallowBooks获取到的是Book模型下只包含其他模型id的数据
     // [{ id: 1, name: 'book1', author: '1', comments: ['c1', 'c2'], summary: 'hello world', }, { id: 2, name: 'book2', author: '2', comments: ['c3', 'c4'], summary: 'new start', }]
-    const shallowBooks = bookStore.useShallowValue(idList);
+    const shallowBooks = bookStore.useGetShallowValue(idList);
 
     const singleId = useMemo(() => 1, []);
     // 获取单条完整数据
@@ -325,7 +325,7 @@ function useCustomHook() {
     // 获取单条本模型下的数据
     const singleShallowBook = bookStore.useGetValue(singleId);
 
-    // useState 返回的内容等同于 [bookStore.useGetValue(...), bookStore.useSetState()], useSetState将在下文介绍。
+    // useState 返回的内容等同于 [bookStore.useGetValue(...), bookStore.useSetState()], useSetState将在下文介绍
     const [bookValue, setBookState] = bookStore.useState(singleIdOrIdList);
 }
 ```
