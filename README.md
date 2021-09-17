@@ -302,7 +302,7 @@ set(id: IModelId, item: Partial<T>): IModelId; // 由于指定了id，因此数�
 type IModelId = string | number;
 ```
 
-## 读取数据
+## 在hook中读取数据
 
 ```
 // 在hook函数中
@@ -328,6 +328,25 @@ function useCustomHook() {
     // useState 返回的内容等同于 [bookStore.useGetValue(...), bookStore.useSetState()], useSetState将在下文介绍
     const [bookValue, setBookState] = bookStore.useState(singleIdOrIdList);
 }
+```
+
+## 在 recoil 的 selector 中读取数据
+```
+// selector中
+const recoilSelector = selector({
+  key: 'selectorName',
+  get: ({get}) => {
+    // 获取单条完整数据
+    const singleBook = bookStore.getValue(get, singleId);
+    // 获取完整数据数组
+    const books = bookStore.getValue(get, idList);
+    // 获取单条本模型下的数据
+    const singleShallowBook = bookStore.getShallowValue(get, singleId);
+    // 获取本模型下的数据数组
+    const shallowBooks = bookStore.getShallowValue(get, idList);
+  },
+});
+
 ```
 
 ## 删除数据
